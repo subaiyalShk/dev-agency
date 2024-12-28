@@ -1,8 +1,8 @@
 export function load() {
     return {
         headers: {
-            'X-Frame-Options': 'ALLOWALL',
-            'Access-Control-Allow-Origin': '*'
+            'X-Frame-Options': 'SAMEORIGIN',
+            'Content-Security-Policy': "frame-ancestors 'self' *"
         }
     };
 }
