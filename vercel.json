@@ -5,11 +5,11 @@
         "headers": [
           {
             "key": "X-Frame-Options",
-            "value": "ALLOWALL"
+            "value": "SAMEORIGIN"
           },
           {
-            "key": "Access-Control-Allow-Origin",
-            "value": "*"
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'self' https://*.vercel.app https://*.subaiyalshk.com"
           }
         ]
       }

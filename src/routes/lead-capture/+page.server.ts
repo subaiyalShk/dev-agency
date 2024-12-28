@@ -1,8 +1,13 @@
-export function load() {
+export const config = {
+    runtime: 'edge',
+    regions: ['all'],
+  };
+  
+  export function load() {
     return {
-        headers: {
-            'X-Frame-Options': 'SAMEORIGIN',
-            'Content-Security-Policy': "frame-ancestors 'self' *"
-        }
+      headers: {
+        'Content-Security-Policy': "frame-ancestors 'self' https://*.vercel.app https://*.subaiyalshk.com",
+        'X-Frame-Options': 'SAMEORIGIN'
+      }
     };
-}
+  }
