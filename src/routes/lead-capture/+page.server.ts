@@ -1,6 +1,6 @@
 export const config = {
     runtime: 'edge',
-    regions: ['all'],
+    regions: ['iad1'] // Using Washington DC region, you can change this to the closest region to your users
   };
   
   export function load() {
