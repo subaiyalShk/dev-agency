@@ -1,236 +1,236 @@
 <script lang="ts">
    import { onMount } from 'svelte';
-import { fade } from 'svelte/transition';
-import Typewriter from 'svelte-typewriter';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+    import { fade } from 'svelte/transition';
+    import Typewriter from 'svelte-typewriter';
+    import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
-interface Message {
-  role: 'assistant' | 'user' | 'system';
-  content: string;
-  isNew?: boolean;
-}
-
-interface ChatResponse {
-  continue: boolean;
-  response: string;
-}
-
-let messages: Message[] = [];
-let input = '';
-let loading = false;
-let showInput = true;
-let chatContainer: HTMLDivElement;
-let isComplete = false;
-let inputRef: HTMLInputElement;
-let chatSession;
-
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
-
-// ASCII art for completion
-const thankYouAscii = `
-  _____ _                 _    __   __          _ 
- |_   _| |__   __ _ _ __ | | __\\ \\ / /__  _   _| |
-   | | | '_ \\ / _\` | '_ \\| |/ _ \\ V / _ \\| | | | |
-   | | | | | | (_| | | | | |  __/| | (_) | |_| |_|
-   |_| |_| |_|\\__,_|_| |_|_|\\___||_|\\___/ \\__,_(_)
-                                                   
-We'll be in touch soon to schedule your discovery call!
-`;
-
-const initialMessage: Message = {
-  role: 'assistant',
-  content: "👋 Hello! I'm Tracy from TracerLabs. We're excited to learn about your project! To get started, could you tell me a bit about yourself and what brings you here today?",
-  isNew: true
-};
-
-const model = genAI.getGenerativeModel({ 
-  model: "gemini-1.5-flash-8b",
-  systemInstruction: `You are Tracy, a friendly project requirements assistant for TracerLabs digital agency. Your goal is to have a natural conversation to understand potential clients' needs.
-
-  Required Information to Collect (in any order):
-  - Full name
-  - Email address (very important)
-  - Phone number (very important)
-  - Business/Company name (very important)
-  - Initial project requirements
-  - Budget range (very important)
-
-  Important Guidelines:
-  - Keep the conversation natural and friendly
-  - Ask ONE question at a time
-  - Get to know them and their needs organically
-  - Don't rapid-fire questions - let the conversation flow naturally
-  - Look for natural opportunities to gather information
-  - If you're missing any required information (name, business name, email, phone number and budget) near the end, continue conversation until you have asked for all the required information.
-
-  Once ALL required information is collected, provide a summary in this format:
-  "Great chatting with you! Here's what I understand:
-  - Name: [their name]
-  - Business: [business name]
-  - Project: [brief description]
-  - Contact: [email] / [phone]
-  [optional other details]
-
-  I'll have our team reach out shortly to schedule a discovery call!"
-
-  When ALL required information is collected, set continue to false in the response.
-  Otherwise, set it to true and continue the conversation naturally.`
-});
-
-const generationConfig = {
-  temperature: 1,
-  topP: 0.95,
-  topK: 40,
-  maxOutputTokens: 8192,
-  responseMimeType: "application/json",
-  responseSchema: {
-    type: "object",
-    properties: {
-      continue: { type: "boolean" },
-      response: { type: "string" }
-    }
-  }
-};
-
-onMount(async () => {
-  chatSession = model.startChat({
-    generationConfig,
-    history: [
-      {
-        role: "user",
-        parts: [{ text: "Hello" }]
-      },
-      {
-        role: "model",
-        parts: [{ text: JSON.stringify({
-          continue: true,
-          response: initialMessage.content
-        })}]
-      }
-    ]
-  });
-  
-  messages = [initialMessage];
-  scrollToBottom();
-  focusInput();
-});
-
-function scrollToBottom() {
-  setTimeout(() => {
-    if (chatContainer) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-  }, 0);
-}
-
-function focusInput() {
-  if (inputRef && !isComplete) {
-    inputRef.focus();
-  }
-}
-
-$: if (chatContainer && messages) {
-  scrollToBottom();
-}
-
-function handleMessageComplete() {
-  const index = messages.findIndex(m => m.isNew);
-  if (index !== -1) {
-    messages[index].isNew = false;
-    messages = [...messages];
-    showInput = !isComplete;
-    focusInput();
-  }
-}
-
-async function parseGeminiResponse(responseText: string): Promise<ChatResponse> {
-  try {
-    // Remove JSON code block markers if present
-    const jsonStr = responseText
-      .replace(/```json\n/g, '')
-      .replace(/\n```/g, '')
-      .trim();
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    console.error('Error parsing response:', error);
-    throw error;
-  }
-}
-
-async function handleKeyPress(event: KeyboardEvent) {
-  if (event.key === 'Enter' && input.trim() && !loading && !isComplete) {
-    loading = true;
-    const userMessage = input.trim();
-    input = '';
-
-    messages = [...messages, { role: 'user', content: userMessage, isNew: false }];
-    
-    try {
-      const result = await chatSession.sendMessage(userMessage);
-      const responseText = result.response.text();
-      const response = await parseGeminiResponse(responseText);
-      
-      messages = [...messages, { 
-        role: 'assistant', 
-        content: response.response,
-        isNew: true
-      }];
-
-      // If conversation is complete
-      if (!response.continue) {
-        isComplete = true;
-        showInput = false;
-        
-        // Add ASCII art as system message
-        messages = [...messages, { 
-          role: 'system', 
-          content: thankYouAscii, 
-          isNew: true 
-        }];
-        
-        // Send lead information
-        try {
-          await sendLeadInfo({
-            conversationHistory: messages
-          });
-        } catch (error) {
-          console.error('Error processing lead:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error in chat:', error);
-      messages = [...messages, {
-        role: 'assistant',
-        content: "I apologize, but I encountered an error. please reach out to subaiyalshk@tracerlabs.io",
-        isNew: true
-      }];
+    interface Message {
+    role: 'assistant' | 'user' | 'system';
+    content: string;
+    isNew?: boolean;
     }
 
-    loading = false;
-  }
-}
+    interface ChatResponse {
+    continue: boolean;
+    response: string;
+    }
 
-async function sendLeadInfo(data: { conversationHistory: Message[] }) {
-  try {
-    const response = await fetch('/api/leads', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
+    let messages: Message[] = [];
+    let input = '';
+    let loading = false;
+    let showInput = true;
+    let chatContainer: HTMLDivElement;
+    let isComplete = false;
+    let inputRef: HTMLInputElement;
+    let chatSession;
+
+    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const genAI = new GoogleGenerativeAI(API_KEY);
+
+    // ASCII art for completion
+    const thankYouAscii = `
+    _____ _                 _    __   __          _ 
+    |_   _| |__   __ _ _ __ | | __\\ \\ / /__  _   _| |
+    | | | '_ \\ / _\` | '_ \\| |/ _ \\ V / _ \\| | | | |
+    | | | | | | (_| | | | | |  __/| | (_) | |_| |_|
+    |_| |_| |_|\\__,_|_| |_|_|\\___||_|\\___/ \\__,_(_)
+                                                    
+    We'll be in touch soon to schedule your discovery call!
+    `;
+
+    const initialMessage: Message = {
+    role: 'assistant',
+    content: "👋 Hello! I'm Tracy from TracerLabs. We're excited to learn about your project! To get started, could you tell me a bit about yourself and what brings you here today?",
+    isNew: true
+    };
+
+    const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash-8b",
+    systemInstruction: `You are Tracy, a friendly project requirements assistant for TracerLabs digital agency. Your goal is to have a natural conversation to understand potential clients' needs.
+
+    Required Information to Collect (in any order):
+    - Full name
+    - Email address (very important)
+    - Phone number (very important)
+    - Business/Company name (very important)
+    - Initial project requirements
+    - Budget range (very important)
+
+    Important Guidelines:
+    - Keep the conversation natural and friendly
+    - Ask ONE question at a time
+    - Get to know them and their needs organically
+    - Don't rapid-fire questions - let the conversation flow naturally
+    - Look for natural opportunities to gather information
+    - If you're missing any required information (name, business name, email, phone number and budget) near the end, continue conversation until you have asked for all the required information.
+
+    Once ALL required information is collected, provide a summary in this format:
+    "Great chatting with you! Here's what I understand:
+    - Name: [their name]
+    - Business: [business name]
+    - Project: [brief description]
+    - Contact: [email] / [phone]
+    [optional other details]
+
+    I'll have our team reach out shortly to schedule a discovery call!"
+
+    When ALL required information is collected, set continue to false in the response.
+    Otherwise, set it to true and continue the conversation naturally.`
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to send lead information');
+    const generationConfig = {
+    temperature: 1,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: 8192,
+    responseMimeType: "application/json",
+    responseSchema: {
+        type: "object",
+        properties: {
+        continue: { type: "boolean" },
+        response: { type: "string" }
+        }
+    }
+    };
+
+    onMount(async () => {
+    chatSession = model.startChat({
+        generationConfig,
+        history: [
+        {
+            role: "user",
+            parts: [{ text: "Hello" }]
+        },
+        {
+            role: "model",
+            parts: [{ text: JSON.stringify({
+            continue: true,
+            response: initialMessage.content
+            })}]
+        }
+        ]
+    });
+    
+    messages = [initialMessage];
+    scrollToBottom();
+    focusInput();
+    });
+
+    function scrollToBottom() {
+    setTimeout(() => {
+        if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    }, 0);
     }
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error sending lead information:', error);
-    throw error;
-  }
-}
+    function focusInput() {
+    if (inputRef && !isComplete) {
+        inputRef.focus();
+    }
+    }
+
+    $: if (chatContainer && messages) {
+    scrollToBottom();
+    }
+
+    function handleMessageComplete() {
+    const index = messages.findIndex(m => m.isNew);
+    if (index !== -1) {
+        messages[index].isNew = false;
+        messages = [...messages];
+        showInput = !isComplete;
+        focusInput();
+    }
+    }
+
+    async function parseGeminiResponse(responseText: string): Promise<ChatResponse> {
+    try {
+        // Remove JSON code block markers if present
+        const jsonStr = responseText
+        .replace(/```json\n/g, '')
+        .replace(/\n```/g, '')
+        .trim();
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error('Error parsing response:', error);
+        throw error;
+    }
+    }
+
+    async function handleKeyPress(event: KeyboardEvent) {
+    if (event.key === 'Enter' && input.trim() && !loading && !isComplete) {
+        loading = true;
+        const userMessage = input.trim();
+        input = '';
+
+        messages = [...messages, { role: 'user', content: userMessage, isNew: false }];
+        
+        try {
+        const result = await chatSession.sendMessage(userMessage);
+        const responseText = result.response.text();
+        const response = await parseGeminiResponse(responseText);
+        
+        messages = [...messages, { 
+            role: 'assistant', 
+            content: response.response,
+            isNew: true
+        }];
+
+        // If conversation is complete
+        if (!response.continue) {
+            isComplete = true;
+            showInput = false;
+            
+            // Add ASCII art as system message
+            messages = [...messages, { 
+            role: 'system', 
+            content: thankYouAscii, 
+            isNew: true 
+            }];
+            
+            // Send lead information
+            try {
+            await sendLeadInfo({
+                conversationHistory: messages
+            });
+            } catch (error) {
+            console.error('Error processing lead:', error);
+            }
+        }
+        } catch (error) {
+        console.error('Error in chat:', error);
+        messages = [...messages, {
+            role: 'assistant',
+            content: "I apologize, but I encountered an error. please reach out to subaiyalshk@tracerlabs.io",
+            isNew: true
+        }];
+        }
+
+        loading = false;
+    }
+    }
+
+    async function sendLeadInfo(data: { conversationHistory: Message[] }) {
+    try {
+        const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+        throw new Error('Failed to send lead information');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error sending lead information:', error);
+        throw error;
+    }
+    }
 </script>
 
 <main>
