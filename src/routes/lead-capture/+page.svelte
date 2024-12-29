@@ -1,280 +1,239 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { fade } from 'svelte/transition';
-    import Typewriter from 'svelte-typewriter';
-    import { GoogleGenerativeAI } from '@google/generative-ai';
-  
-    interface Message {
-      role: 'assistant' | 'user';
-      content: string;
-      isNew?: boolean;
+   import { onMount } from 'svelte';
+import { fade } from 'svelte/transition';
+import Typewriter from 'svelte-typewriter';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+
+interface Message {
+  role: 'assistant' | 'user' | 'system';
+  content: string;
+  isNew?: boolean;
+}
+
+interface ChatResponse {
+  continue: boolean;
+  response: string;
+}
+
+let messages: Message[] = [];
+let input = '';
+let loading = false;
+let showInput = true;
+let chatContainer: HTMLDivElement;
+let isComplete = false;
+let inputRef: HTMLInputElement;
+let chatSession;
+
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+// ASCII art for completion
+const thankYouAscii = `
+  _____ _                 _    __   __          _ 
+ |_   _| |__   __ _ _ __ | | __\\ \\ / /__  _   _| |
+   | | | '_ \\ / _\` | '_ \\| |/ _ \\ V / _ \\| | | | |
+   | | | | | | (_| | | | | |  __/| | (_) | |_| |_|
+   |_| |_| |_|\\__,_|_| |_|_|\\___||_|\\___/ \\__,_(_)
+                                                   
+We'll be in touch soon to schedule your discovery call!
+`;
+
+const initialMessage: Message = {
+  role: 'assistant',
+  content: "👋 Hello! I'm Tracy from TracerLabs. We're excited to learn about your project! To get started, could you tell me a bit about yourself and what brings you here today?",
+  isNew: true
+};
+
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-1.5-flash-8b",
+  systemInstruction: `You are Tracy, a friendly project requirements assistant for TracerLabs digital agency. Your goal is to have a natural conversation to understand potential clients' needs.
+
+  Required Information to Collect (in any order):
+  - Full name
+  - Email address (very important)
+  - Phone number (very important)
+  - Business/Company name (very important)
+  - Initial project requirements
+  - Budget range (very important)
+
+  Important Guidelines:
+  - Keep the conversation natural and friendly
+  - Ask ONE question at a time
+  - Get to know them and their needs organically
+  - Don't rapid-fire questions - let the conversation flow naturally
+  - Look for natural opportunities to gather information
+  - If you're missing any required information (name, business name, email, phone number and budget) near the end, continue conversation until you have asked for all the required information.
+
+  Once ALL required information is collected, provide a summary in this format:
+  "Great chatting with you! Here's what I understand:
+  - Name: [their name]
+  - Business: [business name]
+  - Project: [brief description]
+  - Contact: [email] / [phone]
+  [optional other details]
+
+  I'll have our team reach out shortly to schedule a discovery call!"
+
+  When ALL required information is collected, set continue to false in the response.
+  Otherwise, set it to true and continue the conversation naturally.`
+});
+
+const generationConfig = {
+  temperature: 1,
+  topP: 0.95,
+  topK: 40,
+  maxOutputTokens: 8192,
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: "object",
+    properties: {
+      continue: { type: "boolean" },
+      response: { type: "string" }
     }
-  
-    interface LeadInfo {
-      email?: string;
-      firstName?: string;
-      lastName?: string;
-      company?: string;
-      projectGoal?: string;
-      timeline?: string;
-      budget?: string;
-      techPreferences?: string;
-      agencyExperience?: string;
-    }
-  
-    let messages: Message[] = [];
-    let input = '';
-    let loading = false;
-    let showInput = false;
-    let chatContainer: HTMLDivElement;
-    let leadInfo: LeadInfo = {};
-    let isCollectingEmail = false;
-  
-    const HUBSPOT_API_KEY = import.meta.env.VITE_HUBSPOT_API_KEY;
-    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    const genAI = new GoogleGenerativeAI(API_KEY);
-  
-    const initialMessage: Message = {
-      role: 'assistant',
-      content: "Welcome to TracerLabs! We're a digital innovation agency specializing in web apps, mobile development, and cybersecurity solutions. How can we help?",
-      isNew: true
-    };
-  
-    onMount(() => {
-      messages = [initialMessage];
-      scrollToBottom();
-    });
-  
-    $: if (chatContainer && messages) {
-      scrollToBottom();
-    }
-  
-    function scrollToBottom() {
-      setTimeout(() => {
-        if (chatContainer) {
-          chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-      }, 0);
-    }
-  
-    // Add message completion handler
-    function handleMessageComplete() {
-      // Mark the current message as not new
-      const index = messages.findIndex(m => m.isNew);
-      if (index !== -1) {
-        messages[index].isNew = false;
-        messages = [...messages]; // Trigger reactivity
-        showInput = true;
+  }
+};
+
+onMount(async () => {
+  chatSession = model.startChat({
+    generationConfig,
+    history: [
+      {
+        role: "user",
+        parts: [{ text: "Hello" }]
+      },
+      {
+        role: "model",
+        parts: [{ text: JSON.stringify({
+          continue: true,
+          response: initialMessage.content
+        })}]
       }
-    }
+    ]
+  });
   
-    // Add keypress handler
-    async function handleKeyPress(event: KeyboardEvent) {
-      if (event.key === 'Enter' && input.trim() && !loading) {
-        const userMessage = input.trim();
-        input = '';
+  messages = [initialMessage];
+  scrollToBottom();
+  focusInput();
+});
+
+function scrollToBottom() {
+  setTimeout(() => {
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }, 0);
+}
+
+function focusInput() {
+  if (inputRef && !isComplete) {
+    inputRef.focus();
+  }
+}
+
+$: if (chatContainer && messages) {
+  scrollToBottom();
+}
+
+function handleMessageComplete() {
+  const index = messages.findIndex(m => m.isNew);
+  if (index !== -1) {
+    messages[index].isNew = false;
+    messages = [...messages];
+    showInput = !isComplete;
+    focusInput();
+  }
+}
+
+async function parseGeminiResponse(responseText: string): Promise<ChatResponse> {
+  try {
+    // Remove JSON code block markers if present
+    const jsonStr = responseText
+      .replace(/```json\n/g, '')
+      .replace(/\n```/g, '')
+      .trim();
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error('Error parsing response:', error);
+    throw error;
+  }
+}
+
+async function handleKeyPress(event: KeyboardEvent) {
+  if (event.key === 'Enter' && input.trim() && !loading && !isComplete) {
+    loading = true;
+    const userMessage = input.trim();
+    input = '';
+
+    messages = [...messages, { role: 'user', content: userMessage, isNew: false }];
+    
+    try {
+      const result = await chatSession.sendMessage(userMessage);
+      const responseText = result.response.text();
+      const response = await parseGeminiResponse(responseText);
+      
+      messages = [...messages, { 
+        role: 'assistant', 
+        content: response.response,
+        isNew: true
+      }];
+
+      // If conversation is complete
+      if (!response.continue) {
+        isComplete = true;
         showInput = false;
-  
-        // Add user message (no typing animation needed)
-        messages = [...messages, { role: 'user', content: userMessage, isNew: false }];
         
-        const response = await getAIResponse(userMessage);
-        // Add AI message with typing animation
+        // Add ASCII art as system message
         messages = [...messages, { 
-          role: 'assistant', 
-          content: response.content,
-          isNew: true
+          role: 'system', 
+          content: thankYouAscii, 
+          isNew: true 
         }];
-  
-        if (response.final) {
-          showInput = false;
-        }
-      }
-    }
-  
-    async function createHubSpotContact(leadInfo: LeadInfo) {
-      try {
-        const response = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${HUBSPOT_API_KEY}`
-          },
-          body: JSON.stringify({
-            properties: {
-              email: leadInfo.email,
-              firstname: leadInfo.firstName,
-              lastname: leadInfo.lastName,
-              company: leadInfo.company,
-              project_goal: leadInfo.projectGoal,
-              timeline: leadInfo.timeline,
-              budget: leadInfo.budget,
-              technology_preferences: leadInfo.techPreferences,
-              agency_experience: leadInfo.agencyExperience
-            }
-          })
-        });
-  
-        if (!response.ok) {
-          throw new Error('Failed to create HubSpot contact');
-        }
-  
-        const deal = await createHubSpotDeal(leadInfo);
-        return deal;
-      } catch (error) {
-        console.error('Error creating HubSpot contact:', error);
-        throw error;
-      }
-    }
-  
-    async function createHubSpotDeal(leadInfo: LeadInfo) {
-      try {
-        const response = await fetch('https://api.hubapi.com/crm/v3/objects/deals', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${HUBSPOT_API_KEY}`
-          },
-          body: JSON.stringify({
-            properties: {
-              dealname: `${leadInfo.company || 'New Lead'} - ${leadInfo.projectGoal || 'Project Inquiry'}`,
-              pipeline: 'default',
-              dealstage: 'appointmentscheduled',
-              amount: leadInfo.budget,
-              project_description: leadInfo.projectGoal
-            }
-          })
-        });
-  
-        if (!response.ok) {
-          throw new Error('Failed to create HubSpot deal');
-        }
-  
-        return await response.json();
-      } catch (error) {
-        console.error('Error creating HubSpot deal:', error);
-        throw error;
-      }
-    }
-  
-    function extractLeadInfo(messages: Message[]): void {
-      // Use the conversation to update leadInfo
-      messages.forEach(msg => {
-        if (msg.role === 'user') {
-          // Extract project goal
-          if (msg.content.toLowerCase().includes('project') || msg.content.toLowerCase().includes('goal')) {
-            leadInfo.projectGoal = msg.content;
-          }
-          // Extract timeline
-          else if (msg.content.toLowerCase().includes('timeline') || msg.content.toLowerCase().includes('deadline')) {
-            leadInfo.timeline = msg.content;
-          }
-          // Extract budget
-          else if (msg.content.toLowerCase().includes('budget') || msg.content.toLowerCase().includes('cost')) {
-            leadInfo.budget = msg.content;
-          }
-          // Extract tech preferences
-          else if (msg.content.toLowerCase().includes('tech') || msg.content.toLowerCase().includes('platform')) {
-            leadInfo.techPreferences = msg.content;
-          }
-          // Extract agency experience
-          else if (msg.content.toLowerCase().includes('agency') || msg.content.toLowerCase().includes('experience')) {
-            leadInfo.agencyExperience = msg.content;
-          }
-        }
-      });
-    }
-  
-    function parseEmailFromMessage(message: string): string | null {
-      const emailRegex = /[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}/;
-      const match = message.match(emailRegex);
-      return match ? match[0] : null;
-    }
-  
-    async function getAIResponse(userInput: string) {
-      loading = true;
-      try {
-        const model = genAI.getGenerativeModel({
-          model: "gemini-1.5-pro",
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.8,
-            maxOutputTokens: 200,
-          },
-        });
-  
-        if (isCollectingEmail) {
-          const email = parseEmailFromMessage(userInput);
-          if (email) {
-            leadInfo.email = email;
-            isCollectingEmail = false;
-            try {
-              await createHubSpotContact(leadInfo);
-              return {
-                content: "Thanks! I've scheduled a discovery call. You'll receive an email with the details shortly. Looking forward to discussing your project!",
-                final: true
-              };
-            } catch (error) {
-              console.error('Error creating HubSpot lead:', error);
-              return {
-                content: "I apologize, but I encountered an issue scheduling the call. Please try again or reach out to us directly.",
-                final: true
-              };
-            }
-          } else {
-            return {
-              content: "I didn't catch a valid email address. Could you please provide your email so I can schedule the call?",
-              final: false
-            };
-          }
-        }
-  
-        const chat = model.startChat({
-          history: [{
-            role: 'user',
-            parts: [{ text: `You are a friendly project requirements assistant for TracerLabs digital agency. Your goal is to understand what kind of help potential clients need, you are allowed to deviate a little to build rapport with the client but come back to main questions and then finally booking them a call.
-  
-  Keep the conversation light and surface-level - we just want to understand their basic needs before scheduling a call.
-  
-  Ask ONE question at a time about:
-  - Their project goal/challenge
-  - Timeline expectations
-  - Technology preferences (if any)
-  - Budget range
-  - Past experience with agencies
-  
-  Keep responses short and conversational. After 4-5 questions, suggest scheduling a discovery call.
-  
-  Current conversation history for context:
-  ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`}]
-          }]
-        });
-  
-        if (messages.length > 8) {
-          isCollectingEmail = true;
-          extractLeadInfo(messages);
-          return {
-            content: "Great! I have a good understanding of your project. Could you please share your email address so I can schedule a discovery call?",
-            final: false
-          };
-        }
-  
-        const result = await chat.sendMessage(userInput);
-        const response = result.response.text();
         
-        return {
-          content: response,
-          final: false
-        };
-      } finally {
-        loading = false;
+        // Send lead information
+        try {
+          await sendLeadInfo({
+            conversationHistory: messages
+          });
+        } catch (error) {
+          console.error('Error processing lead:', error);
+        }
       }
+    } catch (error) {
+      console.error('Error in chat:', error);
+      messages = [...messages, {
+        role: 'assistant',
+        content: "I apologize, but I encountered an error. please reach out to subaiyalshk@tracerlabs.io",
+        isNew: true
+      }];
     }
-  </script>
-  
-  
-  <main>
+
+    loading = false;
+  }
+}
+
+async function sendLeadInfo(data: { conversationHistory: Message[] }) {
+  try {
+    const response = await fetch('/api/leads', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send lead information');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending lead information:', error);
+    throw error;
+  }
+}
+</script>
+
+<main>
     <div class="fakeMenu">
       <div class="fakeButtons fakeClose"></div>
       <div class="fakeButtons fakeMinimize"></div>
@@ -284,15 +243,16 @@
     <div class="fakeScreen" bind:this={chatContainer}>
       {#each messages as message}
         <div class="message-line" transition:fade>
-          <p>
+          <p class={message.role === 'system' ? 'ascii-art' : ''}>
             <span class="prompt">
-              {message.role === 'assistant' ? 'tracerlabs:~$' : 'user:~$'}
+              {message.role === 'assistant' ? 'tracerlabs:~$' : 
+               message.role === 'system' ? '' : 'user:~$'}
             </span>
             {#if message.isNew}
               <Typewriter 
                 interval={30}
                 cursor={true}
-                keepCursorOnFinish={true}
+                keepCursorOnFinish={false}
                 mode="cascade"
                 on:done={handleMessageComplete}
               >
@@ -315,13 +275,14 @@
         </div>
       {/if}
   
-      {#if showInput}
+      {#if showInput && !isComplete}
         <div class="message-line">
           <p>
             <span class="prompt">user:~$</span>
             <input
               type="text"
               bind:value={input}
+              bind:this={inputRef}
               on:keypress={handleKeyPress}
               placeholder="Type your message..."
               class="terminal-input"
@@ -330,9 +291,9 @@
         </div>
       {/if}
     </div>
-  </main>
-  
-  <style>
+</main>
+
+<style>
     main {
       height: 100vh;
     }
@@ -399,6 +360,14 @@
       margin: 0;
       flex: 1;
     }
+
+    .ascii-art {
+      white-space: pre;
+      font-size: 0.7rem;
+      color: #00ff00 !important;
+      text-align: center;
+      padding: 2rem 0;
+    }
   
     .prompt {
       color: #00ff00;
@@ -422,7 +391,6 @@
       color: rgba(255, 255, 255, 0.5);
     }
   
-    /* Loading animation */
     .loading-dots {
       display: inline-block;
       margin-right: 0.5rem;
@@ -440,7 +408,6 @@
       80%, 100% { content: ''; }
     }
   
-    /* Hide scrollbar */
     .fakeScreen::-webkit-scrollbar {
       display: none;
     }
@@ -450,8 +417,7 @@
       scrollbar-width: none;
     }
   
-    /* Fix typewriter cursor */
     :global(.svelte-typewriter-cursor) {
       color: #00ff00 !important;
     }
-  </style>
+</style>
