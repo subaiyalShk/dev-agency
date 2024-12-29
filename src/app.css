@@ -1,3 +1,23 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
-@import 'tailwindcss/utilities'
+@import 'tailwindcss/utilities';
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@font-face {
+    font-family: 'Duborics';
+    src: url('/fonts/DuboricsRegular.eot');
+    src: local('Duborics'), local('DuboricsRegular'),
+        url('/fonts/DuboricsRegular.eot?#iefix') format('embedded-opentype'),
+        url('/fonts/DuboricsRegular.woff2') format('woff2'),
+        url('/fonts/DuboricsRegular.woff') format('woff'),
+        url('/fonts/DuboricsRegular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 400;
+}

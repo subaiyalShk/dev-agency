@@ -1,11 +1,25 @@
-<!-- src/lib/components/Navbar.svelte -->
 <script lang="ts">
     import { page } from '$app/stores';
+    import { goto } from '$app/navigation';
+    import type { SupabaseClient, Session } from '@supabase/supabase-js';
+
+    export let session: Session | null;
+    export let supabase: SupabaseClient;
+    
     let isMenuOpen = false;
     
     // Close menu when route changes
     $: if ($page.url.pathname) {
         isMenuOpen = false;
+    }
+
+    async function handleSignOut() {
+        try {
+            await supabase.auth.signOut();
+            
+        } catch (error) {
+            console.error('Sign out error:', error);
+        }
     }
     
     const navItems = [
@@ -41,6 +55,15 @@
                         ></span>
                     </a>
                 {/each}
+
+                <!-- Sign out button -->
+                <button 
+                    on:click={handleSignOut}
+                    class="relative text-brand-white/90 hover:text-brand-white px-4 py-2 text-sm font-medium transition-all duration-200 group"
+                >
+                    Sign Out
+                    <span class="absolute bottom-0 left-0 w-0 h-0.5 bg-brand-red transition-all duration-200 group-hover:w-full"></span>
+                </button>
             </div>
 
             <!-- Mobile menu button -->
@@ -77,15 +100,23 @@
         <div class="md:hidden" id="mobile-menu">
             <div class="space-y-1 px-2 pb-3 pt-2 sm:px-3 bg-brand-black/95 border-t border-brand-red/10 backdrop-blur-sm">
                 {#each navItems as {href, label}}
-                    <a
+                    
                         {href}
                         class="block px-4 py-2 rounded-md text-base font-medium text-brand-white/90 hover:text-brand-white hover:bg-brand-white/5 transition-colors duration-200"
                         class:bg-brand-red-10={$page.url.pathname === href}
                         class:text-brand-red={$page.url.pathname === href}
-                    >
+                    
                         {label}
-                    </a>
+                    
                 {/each}
+
+                <!-- Mobile sign out button -->
+                <button 
+                    on:click={handleSignOut}
+                    class="block w-full text-left px-4 py-2 rounded-md text-base font-medium text-brand-white/90 hover:text-brand-white hover:bg-brand-white/5 transition-colors duration-200"
+                >
+                    Sign Out
+                </button>
             </div>
         </div>
     {/if}

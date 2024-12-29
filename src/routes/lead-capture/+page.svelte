@@ -2,7 +2,7 @@
    import { onMount } from 'svelte';
     import { fade } from 'svelte/transition';
     import Typewriter from 'svelte-typewriter';
-    import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+    import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, ChatSession } from '@google/generative-ai';
 
     interface Message {
     role: 'assistant' | 'user' | 'system';
@@ -22,7 +22,7 @@
     let chatContainer: HTMLDivElement;
     let isComplete = false;
     let inputRef: HTMLInputElement;
-    let chatSession;
+    let chatSession: ChatSession;
 
     const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
     const genAI = new GoogleGenerativeAI(API_KEY);
