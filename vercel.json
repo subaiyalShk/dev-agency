@@ -1,17 +1,25 @@
 {
     "headers": [
       {
-        "source": "/(.*)",
+        "source": "/lead-capture(.*)",
         "headers": [
           {
-            "key": "X-Frame-Options",
-            "value": "SAMEORIGIN"
+            "key": "Access-Control-Allow-Origin",
+            "value": "https://www.tracerlabs.io"
+          },
+          {
+            "key": "Access-Control-Allow-Methods",
+            "value": "GET, POST, OPTIONS"
+          },
+          {
+            "key": "Access-Control-Allow-Headers",
+            "value": "Content-Type"
           },
           {
             "key": "Content-Security-Policy",
-            "value": "frame-ancestors 'self' https://*.vercel.app https://*.subaiyalshk.com"
+            "value": "frame-ancestors 'self' https://www.tracerlabs.io https://tracerlabs.io https://*.tracerlabs.io https://*.vercel.app https://*.subaiyalshk.com"
           }
         ]
       }
     ]
-  }
+}
