@@ -29,14 +29,14 @@
     const genAI = new GoogleGenerativeAI(API_KEY);
     
     const thankYouAscii = `
-    _____ _                 _    __   __          _ 
-    |_   _| |__   __ _ _ __ | | __\\ \\ / /__  _   _| |
-    | | | '_ \\ / _\` | '_ \\| |/ _ \\ V / _ \\| | | | |
-    | | | | | | (_| | | | | |  __/| | (_) | |_| |_|
-    |_| |_| |_|\\__,_|_| |_|_|\\___||_|\\___/ \\__,_(_)
+ _____ _                 _    __   __          _ 
+|_   _| |__   __ _ _ __ | | __\\ \\ / /__  _   _| |
+  | | | '_ \\ / _\` | '_ \\| |/ _ \\ V / _ \\| | | | |
+  | | | | | | (_| | | | | |  __/| | (_) | |_| |_|
+  |_| |_| |_|\\__,_|_| |_|_|\\___||_|\\___/ \\__,_(_)
                                                     
-    We'll be in touch soon to schedule your discovery call!
-    `;
+We'll be in touch soon to schedule your discovery call!
+`;
     
     const initialMessage: Message = {
         role: 'assistant',
