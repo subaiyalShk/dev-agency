@@ -233,7 +233,7 @@
     }
 </script>
 
-<main>
+<main class="h-screen flex flex-col">
     <div class="fakeMenu">
       <div class="fakeButtons fakeClose"></div>
       <div class="fakeButtons fakeMinimize"></div>
@@ -241,42 +241,44 @@
     </div>
   
     <div class="fakeScreen" bind:this={chatContainer}>
-      {#each messages as message}
-        <div class="message-line" transition:fade>
-          <p class={message.role === 'system' ? 'ascii-art' : ''}>
-            <span class="prompt">
-              {message.role === 'assistant' ? 'tracerlabs:~$' : 
-               message.role === 'system' ? '' : 'user:~$'}
-            </span>
-            {#if message.isNew}
-              <Typewriter 
-                interval={30}
-                cursor={true}
-                keepCursorOnFinish={false}
-                mode="cascade"
-                on:done={handleMessageComplete}
-              >
+      <div class="messages-container">
+        {#each messages as message}
+          <div class="message-line" transition:fade>
+            <p class={message.role === 'system' ? 'ascii-art' : ''}>
+              <span class="prompt">
+                {message.role === 'assistant' ? 'tracerlabs:~$' : 
+                 message.role === 'system' ? '' : 'user:~$'}
+              </span>
+              {#if message.isNew}
+                <Typewriter 
+                  interval={30}
+                  cursor={true}
+                  keepCursorOnFinish={false}
+                  mode="cascade"
+                  on:done={handleMessageComplete}
+                >
+                  {message.content}
+                </Typewriter>
+              {:else}
                 {message.content}
-              </Typewriter>
-            {:else}
-              {message.content}
-            {/if}
-          </p>
-        </div>
-      {/each}
-  
-      {#if loading}
-        <div class="message-line" transition:fade>
-          <p>
-            <span class="prompt">system:~$</span>
-            <span class="loading-dots"></span>
-            Processing...
-          </p>
-        </div>
-      {/if}
+              {/if}
+            </p>
+          </div>
+        {/each}
+    
+        {#if loading}
+          <div class="message-line" transition:fade>
+            <p>
+              <span class="prompt">system:~$</span>
+              <span class="loading-dots"></span>
+              Processing...
+            </p>
+          </div>
+        {/if}
+      </div>
   
       {#if showInput && !isComplete}
-        <div class="message-line">
+        <div class="input-container">
           <p>
             <span class="prompt">user:~$</span>
             <input
@@ -295,7 +297,10 @@
 
 <style>
     main {
-      height: 100vh;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
   
     .fakeButtons {
@@ -324,30 +329,46 @@
     }
   
     .fakeMenu {
-      position: fixed;
-      width: 100vw;
-      box-sizing: border-box;
-      height: 40px;
-      background-color: #bbb;
-      margin: 0 auto;
-      border-top-right-radius: 5px;
-      border-top-left-radius: 5px;
+        width: 100%;
+        box-sizing: border-box;
+        height: 40px;
+        background-color: #bbb;
+        border-top-right-radius: 5px;
+        border-top-left-radius: 5px;
     }
   
     .fakeScreen {
-      background-color: #151515;
-      box-sizing: border-box;
-      width: 100vw;
-      height: 100%;
-      max-height: 100%;
-      overflow: scroll;
-      margin: 0 auto;
-      padding: 20px;
-      padding-top: 60px;
-      border-bottom-left-radius: 5px;
-      border-bottom-right-radius: 5px;
+        background-color: #151515;
+        box-sizing: border-box;
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        border-bottom-left-radius: 5px;
+        border-bottom-right-radius: 5px;
     }
   
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        padding-bottom: 80px; /* Make room for input */
+    }
+    .input-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #151515;
+        padding: 20px;
+        border-top: 1px solid #333;
+    }
+
+    .input-container p{
+        display: flex;
+    }
+
     .message-line {
       display: flex;
       margin-bottom: 1rem;
