@@ -347,6 +347,7 @@
         position: relative;
         border-bottom-left-radius: 5px;
         border-bottom-right-radius: 5px;
+        height: 90vh;
     }
   
     .messages-container {
