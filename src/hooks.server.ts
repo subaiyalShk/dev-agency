@@ -1,6 +1,12 @@
 import { createSupabaseServerClient } from '@supabase/auth-helpers-sveltekit'
 import { redirect, type Handle } from '@sveltejs/kit'
 
+// Define allowed origins
+const ALLOWED_ORIGINS = [
+    'https://www.tracerlabs.io',
+    'https://beastmode.tracerlabs.io'
+]
+
 export const handle: Handle = async ({ event, resolve }) => {
     event.locals.supabase = createSupabaseServerClient({
         supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -34,10 +40,20 @@ export const handle: Handle = async ({ event, resolve }) => {
         },
     })
 
-    // Keep your existing CORS headers
-    response.headers.append('Access-Control-Allow-Origin', 'https://www.tracerlabs.io')
-    response.headers.append('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.append('Access-Control-Allow-Headers', 'Content-Type')
+    // Get the origin from the request headers
+    const requestOrigin = event.request.headers.get('origin')
+
+    // If the request origin is in our allowed list, set it as the allowed origin
+    if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+        response.headers.set('Access-Control-Allow-Origin', requestOrigin)
+    } else {
+        // Default to the first allowed origin if no match or no origin header
+        response.headers.set('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0])
+    }
+
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
 
     return response
 }
