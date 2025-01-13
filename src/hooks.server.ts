@@ -17,7 +17,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Check authentication
     const session = await event.locals.getSession()
-    const publicPaths = ['/login', '/register', '/reset-password', '/lead-capture', '/api/leads']
+    const publicPaths = ['/login', '/register', '/reset-password', '/lead-capture', '/api/leads', '/api/beastmode-earlyaccess']
     const isPublicPath = publicPaths.some(path => 
         event.url.pathname.startsWith(path)
     )
